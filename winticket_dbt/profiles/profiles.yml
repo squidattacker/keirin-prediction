@@ -1,0 +1,12 @@
+winticket_duckdb:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: /workspace/app/winticket_dbt/warehouse/winticket.duckdb
+      threads: 4
+      extensions:
+        - json
+        - httpfs
+      settings:
+        timezone: 'UTC'

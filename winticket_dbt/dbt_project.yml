@@ -1,0 +1,27 @@
+name: 'winticket_dbt'
+version: '1.0.0'
+config-version: 2
+profile: 'winticket_duckdb'
+
+model-paths: ['models']
+seed-paths: ['seeds']
+macro-paths: ['macros']
+analysis-paths: ['analyses']
+test-paths: ['tests']
+
+vars:
+  data_root: "{{ env_var('WINTICKET_DATA_ROOT', '/workspace/app/data/winticket_lake') }}"
+  bronze_racecards_glob: "{{ var('data_root') }}/bronze/racecards/*.json"
+  bronze_raceresults_glob: "{{ var('data_root') }}/bronze/results/*.json"
+  target_tipster_id: "{{ env_var('WINTICKET_TIPSTER_ID', 'dsc-00') }}"
+
+models:
+  winticket_dbt:
+    +materialized: table
+    bronze:
+      +materialized: view
+      +schema: bronze
+    silver:
+      +schema: silver
+    gold:
+      +schema: gold
