@@ -65,6 +65,93 @@ python -m winticket.harvest --cup-id 044420251112 --venue takeo --race-numbers 1
 docker-compose run dbt run
 ```
 
+## データパイプラインフロー
+
+### 概要
+
+本システムは5段階のデータパイプラインで構成されています：
+
+1. **データ収集**: WinTicketサイトからレース情報をJSON形式で取得
+2. **Bronze層**: 生JSONデータをDuckDBで読み込み可能な形式に変換
+3. **Silver層**: 正規化されたテーブル構造でデータを整理
+4. **Gold層**: 機械学習用の統合特徴量テーブルを生成
+5. **ML学習**: 会場別特化モデルを学習・永続化
+
+### パイプライン図
+
+```mermaid
+graph TD
+    A[WinTicket Website] -->|harvest.py| B[Bronze JSON Files]
+    
+    B --> C[bronze_racecards]
+    B --> D[bronze_race_results]
+    
+    C --> E[silver_race_metadata]
+    C --> F[silver_race_entries]
+    D --> G[silver_race_results]
+    C --> H[silver_exacta_odds]
+    C --> I[silver_head_to_head]
+    C --> J[silver_tipster_predictions]
+    
+    E --> K[gold_entry_features]
+    F --> K
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+    
+    K -->|training.py| L[Venue-Specific Models]
+    L --> M[Predictions CSV]
+    
+    subgraph "Bronze Layer (生データ)"
+        C
+        D
+    end
+    
+    subgraph "Silver Layer (正規化)"
+        E
+        F
+        G
+        H
+        I
+        J
+    end
+    
+    subgraph "Gold Layer (特徴量)"
+        K
+    end
+    
+    subgraph "ML Pipeline"
+        L
+        M
+    end
+```
+
+### データ変換詳細
+
+```mermaid
+sequenceDiagram
+    participant W as WinTicket
+    participant H as harvest.py
+    participant B as Bronze Layer
+    participant S as Silver Layer
+    participant G as Gold Layer
+    participant ML as ML Training
+    
+    W->>H: HTML + __PRELOADED_STATE__
+    H->>B: JSON files (racecards + results)
+    
+    B->>S: dbt run (JSON → Views)
+    Note over S: race_metadata, race_entries,<br/>race_results, exacta_odds,<br/>head_to_head, predictions
+    
+    S->>G: Feature engineering
+    Note over G: 44 features + labels<br/>(Parquet format)
+    
+    G->>ML: load_features()
+    ML->>ML: LightGBM/LogisticRegression
+    Note over ML: Venue-specific models<br/>(joblib serialization)
+```
+
 ### 3. 特徴量エンジニアリング (features.py)
 
 44種類の特徴量を定義・抽出：
