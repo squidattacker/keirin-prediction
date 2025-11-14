@@ -270,6 +270,33 @@ print(f"学習完了: {stats.rows}行, 正例{stats.positives}, 負例{stats.neg
    ```
    サマリ：#7 下沖功児 86.1%、#4 泉谷元樹 56.5%、#5 南部亮太 32.7%、#1 藤野貴章 23.8% …という序列で複勝・ワイドの意思決定に利用できます。
 
+##### CLIでの予測・ヒット率表示
+`scripts/predict_race.py` を使うと、Win/Top3 両方の確率と最新の的中率をワンコマンドで取得できます。
+
+```bash
+source .venv/bin/activate
+python scripts/predict_race.py \
+  --venue komatsushima \
+  --features data/winticket_lake/gold/features/komatsushima_2025111273.parquet \
+  --schedule-date 20251114 \
+  --day-index 3 \
+  --race-number 1
+```
+
+出力例：
+
+```
+Race #1 predictions (tipster dsc-00):
+ number player_name  win_prob  top3_prob  pick_rank ...
+      7        下沖功児  0.015166   0.861425        1.0 ...
+...
+Current hit rates — win: 100.0%, top3 coverage: 91.5%
+```
+
+- **win_prob** と **top3_prob** を同時表示（デフォルト）
+- **Current hit rates** は同一特徴量ファイル全体での実測的中率（勝者ヒット率／上位3人カバー率）
+- `--model-type logistic` や `--tipster-id other_tipster` などの切替にも対応
+
 ### 5. モデル管理 (models.py)
 
 `VenueModelStore`クラスでモデルの永続化を管理：
