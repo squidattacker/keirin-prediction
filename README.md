@@ -228,6 +228,48 @@ stats = trainer.train()
 print(f"学習完了: {stats.rows}行, 正例{stats.positives}, 負例{stats.negatives}")
 ```
 
+##### 直近開催アップデート例（小松島 Day3 1R / 2025-11-14）
+1. **最新データ取得**
+   ```bash
+   source .venv/bin/activate
+   python -m winticket.harvest --cup-id 2025111273 --venue komatsushima --index 3 --race-numbers 1 --sources racecard raceresult
+   ```
+2. **Gold特徴量の再生成**
+   ```bash
+   python scripts/build_features.py --venue komatsushima --cup-ids 2025111273 --output data/winticket_lake/gold/features/komatsushima_2025111273.parquet
+   ```
+3. **LightGBM再学習**（最新のDay1〜Day3結果553行を使用）
+   ```bash
+   python - <<'PY'
+   from winticket.training import VenueModelTrainer
+
+   for target in ("win", "top3"):
+       trainer = VenueModelTrainer(
+           venue_slug="komatsushima",
+           tipster_id="dsc-00",
+           model_type="lightgbm",
+           target=target,
+       )
+       stats = trainer.train()
+       print(target, stats)
+   PY
+   ```
+   - Win: 553行（陽性80/陰性473）
+   - Top3: 553行（陽性242/陰性311）
+4. **再推論（Top3例）**
+   ```bash
+   python - <<'PY'
+   import pandas as pd, joblib
+   from winticket.features import FEATURE_COLUMNS
+
+   df = pd.read_parquet('data/winticket_lake/gold/features/komatsushima_2025111273.parquet')
+   target = df[(df['race_number']==1) & (df['day_index']==3) & (~df['is_absent'].fillna(False)) & (df['tipster_id']=='dsc-00')]
+   bundle = joblib.load('models/winticket/komatsushima_top3_lightgbm.joblib')
+   probs = bundle['estimator'].predict_proba(target[bundle['feature_names']].fillna(0.0))[:,1]
+   target.assign(top3_prob=probs).sort_values('top3_prob', ascending=False).to_csv('komatsushima_day3_r1_top3_predictions.csv', index=False)
+   ```
+   サマリ：#7 下沖功児 86.1%、#4 泉谷元樹 56.5%、#5 南部亮太 32.7%、#1 藤野貴章 23.8% …という序列で複勝・ワイドの意思決定に利用できます。
+
 ### 5. モデル管理 (models.py)
 
 `VenueModelStore`クラスでモデルの永続化を管理：
