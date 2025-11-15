@@ -1,0 +1,7 @@
+iwakidaira 2025-11-14 (Day1) backtest
+method: top3 (heat補正なし)
+races evaluated: 12 (R1-R12)
+hits: 10
+accuracy: 83.33%
+missed races: R8 (015123-015058-015195 vs actual 015123-014590-015058), R10 (015444-013772-014864 vs actual 015444-013772-015059)
+phase breakdown: qualifiers 10R @80%, selections 2R @100%

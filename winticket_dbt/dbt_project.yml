@@ -8,12 +8,19 @@ seed-paths: ['seeds']
 macro-paths: ['macros']
 analysis-paths: ['analyses']
 test-paths: ['tests']
+target-path: 'target_user'
+log-path: 'logs_user'
+packages-install-path: 'dbt_packages_user'
+clean-targets:
+  - 'target_user'
+  - 'dbt_packages_user'
 
 vars:
   data_root: "{{ env_var('WINTICKET_DATA_ROOT', '/workspace/app/data/winticket_lake') }}"
   bronze_racecards_glob: "{{ var('data_root') }}/bronze/racecards/*.json"
   bronze_raceresults_glob: "{{ var('data_root') }}/bronze/results/*.json"
   target_tipster_id: "{{ env_var('WINTICKET_TIPSTER_ID', 'dsc-00') }}"
+  target_venue_slug: "{{ env_var('WINTICKET_TARGET_VENUE', '') }}"
 
 models:
   winticket_dbt:

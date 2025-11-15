@@ -1,3 +1,4 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
@@ -5,3 +6,20 @@ __pycache__/
 *.pyd
 .DS_Store
 .env
+
+# Local data, models, and artifacts
+data/
+models/
+predictions/
+archives/
+*.duckdb
+.duckdb/
+*.joblib
+
+# dbt artifacts
+winticket_dbt/logs/
+winticket_dbt/logs_user/
+winticket_dbt/target/
+winticket_dbt/target_user/
+winticket_dbt/dbt_packages/
+winticket_dbt/dbt_packages_user/

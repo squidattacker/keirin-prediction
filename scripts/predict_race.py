@@ -10,6 +10,8 @@ from typing import Dict, Iterable, Tuple
 
 import joblib
 import pandas as pd
+import numpy as np
+from sklearn.metrics import brier_score_loss, log_loss
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -32,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--race-number", type=int, help="Race number to show (defaults to first race found)")
     parser.add_argument("--day-index", type=int, help="Day index filter")
     parser.add_argument("--schedule-date", help="Schedule date (YYYYMMDD) filter")
-    parser.add_argument("--model-type", choices=["lightgbm", "logistic"], default="lightgbm")
+    parser.add_argument("--model-type", choices=["lightgbm", "logistic", "lambdarank"], default="lightgbm")
     return parser.parse_args()
 
 
@@ -71,12 +73,40 @@ def ensure_features(frame: pd.DataFrame, feature_names: Iterable[str]) -> pd.Dat
     return frame[list(feature_names)].fillna(0.0)
 
 
+def _softmax_group(scores: np.ndarray, race_ids: np.ndarray) -> np.ndarray:
+    probs = np.zeros_like(scores, dtype=float)
+    for rid in np.unique(race_ids):
+        mask = race_ids == rid
+        subset = scores[mask]
+        shifted = subset - subset.max()
+        exp = np.exp(shifted)
+        denom = exp.sum()
+        if denom <= 0:
+            probs[mask] = 1.0 / len(subset)
+        else:
+            probs[mask] = exp / denom
+    return probs
+
+
+def infer_probabilities(frame: pd.DataFrame, bundle: Dict) -> np.ndarray:
+    features = ensure_features(frame, bundle.get("feature_names", FEATURE_COLUMNS))
+    estimator = bundle["estimator"]
+    model_type = bundle.get("model_type")
+    race_ids = frame["race_id"].to_numpy()
+    if bundle.get("is_ranker") or model_type == "lambdarank":
+        scores = estimator.predict(features)
+        scores = np.asarray(scores, dtype=float)
+        return _softmax_group(scores, race_ids)
+    proba = estimator.predict_proba(features)
+    if proba.ndim == 1:
+        return proba
+    return proba[:, 1]
+
+
 def predict(frame: pd.DataFrame, win_bundle: Dict, top3_bundle: Dict) -> pd.DataFrame:
-    win_features = ensure_features(frame, win_bundle.get("feature_names", FEATURE_COLUMNS))
-    top3_features = ensure_features(frame, top3_bundle.get("feature_names", FEATURE_COLUMNS))
     out = frame.copy()
-    out["win_prob"] = win_bundle["estimator"].predict_proba(win_features)[:, 1]
-    out["top3_prob"] = top3_bundle["estimator"].predict_proba(top3_features)[:, 1]
+    out["win_prob"] = infer_probabilities(frame, win_bundle)
+    out["top3_prob"] = infer_probabilities(frame, top3_bundle)
     return out
 
 
@@ -85,10 +115,18 @@ def evaluate_hit_rates(df: pd.DataFrame, win_bundle: Dict, top3_bundle: Dict) ->
     if eval_df.empty:
         return {"win_hit_rate": float("nan"), "top3_coverage": float("nan")}
     eval_df = eval_df[eval_df["tipster_id"].fillna("") == win_bundle.get("tipster_id", "")]
-    win_features = ensure_features(eval_df, win_bundle.get("feature_names", FEATURE_COLUMNS))
-    top3_features = ensure_features(eval_df, top3_bundle.get("feature_names", FEATURE_COLUMNS))
-    eval_df["win_prob"] = win_bundle["estimator"].predict_proba(win_features)[:, 1]
-    eval_df["top3_prob"] = top3_bundle["estimator"].predict_proba(top3_features)[:, 1]
+    eval_df["win_prob"] = infer_probabilities(eval_df, win_bundle)
+    eval_df["top3_prob"] = infer_probabilities(eval_df, top3_bundle)
+
+    win_actual = (eval_df["finish_order"].astype(float) == 1).astype(int)
+    try:
+        win_logloss = log_loss(win_actual, eval_df["win_prob"], labels=[0, 1])
+    except ValueError:
+        win_logloss = float("nan")
+    try:
+        win_brier = brier_score_loss(win_actual, eval_df["win_prob"])
+    except ValueError:
+        win_brier = float("nan")
 
     win_correct = 0
     win_total = 0
@@ -110,7 +148,35 @@ def evaluate_hit_rates(df: pd.DataFrame, win_bundle: Dict, top3_bundle: Dict) ->
 
     win_hit_rate = win_correct / win_total if win_total else float("nan")
     top3_coverage = top3_hits / top3_total if top3_total else float("nan")
-    return {"win_hit_rate": win_hit_rate, "top3_coverage": top3_coverage}
+
+    wind_series = None
+    if "wind_speed_post" in eval_df.columns:
+        wind_series = eval_df["wind_speed_post"].fillna(eval_df.get("wind_speed"))
+    elif "wind_speed" in eval_df.columns:
+        wind_series = eval_df["wind_speed"].fillna(0.0)
+    metrics = {
+        "win_hit_rate": win_hit_rate,
+        "top3_coverage": top3_coverage,
+        "win_log_loss": win_logloss,
+        "win_brier": win_brier,
+    }
+    if wind_series is not None and wind_series.notna().any():
+        high = eval_df[wind_series >= 3.0]
+        low = eval_df[wind_series < 3.0]
+        for label, subset in ("high", high), ("low", low):
+            if subset.empty:
+                continue
+            win_actual_subset = (subset["finish_order"].astype(float) == 1).astype(int)
+            win_probs_subset = subset["win_prob"]
+            wins = 0
+            total = 0
+            for _, race in subset.groupby("race_id"):
+                total += 1
+                actual_winner = race.loc[race["finish_order"].astype(float) == 1, "player_id"].tolist()
+                if actual_winner and race.sort_values("win_prob", ascending=False).iloc[0]["player_id"] in actual_winner:
+                    wins += 1
+            metrics[f"win_hit_rate_wind_{label}"] = wins / total if total else float("nan")
+    return metrics
 
 
 def main() -> None:
@@ -130,28 +196,66 @@ def main() -> None:
     top3_bundle["tipster_id"] = args.tipster_id
 
     race_preds = predict(race_frame, win_bundle, top3_bundle)
+    metrics = evaluate_hit_rates(df, win_bundle, top3_bundle)
+
+    def _recommendation(row) -> str:
+        win_prob = row.get("win_prob", 0.0)
+        top3_prob = row.get("top3_prob", 0.0)
+        if win_prob >= 0.35 or (win_prob >= 0.28 and top3_prob >= 0.7):
+            stars = "★★★"
+        elif win_prob >= 0.2 or top3_prob >= 0.6:
+            stars = "★★"
+        elif win_prob >= 0.1 or top3_prob >= 0.45:
+            stars = "★"
+        else:
+            stars = "☆"
+
+        win_hit = metrics.get("win_hit_rate")
+        top3_cov = metrics.get("top3_coverage")
+        trust_values = [v for v in (win_hit, top3_cov) if v is not None and np.isfinite(v)]
+        trust = float(np.mean(trust_values)) if trust_values else float("nan")
+        if np.isnan(trust):
+            trust_label = "信頼:不明"
+        elif trust >= 0.7:
+            trust_label = "信頼:高"
+        elif trust >= 0.5:
+            trust_label = "信頼:中"
+        else:
+            trust_label = "信頼:低"
+        return f"{stars}/{trust_label}"
+
+    race_preds["recommendation"] = race_preds.apply(_recommendation, axis=1)
     view_cols = [
         "number",
         "player_name",
         "win_prob",
         "top3_prob",
+        "recommendation",
         "pick_rank",
         "recent_win_rate",
         "venue_win_rate",
         "line_id",
         "line_pos",
         "line_size",
+        "line_win_share",
     ]
     print(f"Race #{race_number} predictions (tipster {args.tipster_id}):")
     print(race_preds[view_cols].sort_values("win_prob", ascending=False).to_string(index=False))
 
-    metrics = evaluate_hit_rates(df, win_bundle, top3_bundle)
     print()
     print(
         "Current hit rates — win: {win:.1%}, top3 coverage: {top3:.1%}".format(
             win=metrics["win_hit_rate"], top3=metrics["top3_coverage"]
         )
     )
+    win_log = metrics.get("win_log_loss")
+    win_brier = metrics.get("win_brier")
+    if win_log is not None and np.isfinite(win_log):
+        print(f"Win logloss: {win_log:.4f}, Brier: {win_brier:.4f}")
+    for label in ("high", "low"):
+        key = f"win_hit_rate_wind_{label}"
+        if key in metrics:
+            print(f"Win hit rate (wind {label}): {metrics[key]:.1%}")
 
 
 if __name__ == "__main__":

@@ -3,10 +3,11 @@ winticket_duckdb:
   outputs:
     dev:
       type: duckdb
-      path: /workspace/app/winticket_dbt/warehouse/winticket.duckdb
-      threads: 4
+      path: "{{ env_var('WINTICKET_DBT_WAREHOUSE', '/home/squidattacker/keirin-prediction/winticket_dbt/warehouse/winticket.duckdb') }}"
+      threads: 1
       extensions:
         - json
         - httpfs
       settings:
         timezone: 'UTC'
+        memory_limit: '4GB'

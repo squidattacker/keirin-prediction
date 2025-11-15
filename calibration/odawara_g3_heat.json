@@ -1,0 +1,55 @@
+{
+  "features": [
+    "top3_prob",
+    "win_prob",
+    "recent_win_rate",
+    "recent_top3_rate",
+    "line_win_share",
+    "line_top3_expectation",
+    "phase_importance_coeff"
+  ],
+  "intercept": -1.2099859673308822,
+  "coefficients": {
+    "top3_prob": 4.670359822592398,
+    "win_prob": 0.07997859796388648,
+    "recent_win_rate": -0.343268840326942,
+    "recent_top3_rate": -0.548290787133997,
+    "line_win_share": -0.5328718408017812,
+    "line_top3_expectation": -0.025113742641172845,
+    "phase_importance_coeff": 0.12048052058122874
+  },
+  "scaler": {
+    "top3_prob": {
+      "mean": 0.35589603029926936,
+      "scale": 0.2735370503933182
+    },
+    "win_prob": {
+      "mean": 0.1074811193189116,
+      "scale": 0.207494840348561
+    },
+    "recent_win_rate": {
+      "mean": 0.13384798717277555,
+      "scale": 0.11626715965837502
+    },
+    "recent_top3_rate": {
+      "mean": 0.4114656048352806,
+      "scale": 0.1654045573087759
+    },
+    "line_win_share": {
+      "mean": 0.30999162762900134,
+      "scale": 0.1731688140358115
+    },
+    "line_top3_expectation": {
+      "mean": 1.0427399380804954,
+      "scale": 0.4410201239232279
+    },
+    "phase_importance_coeff": {
+      "mean": 1.1027863777089784,
+      "scale": 0.110023811946497
+    }
+  },
+  "train_rows": 646,
+  "train_races": 72,
+  "coverage_in_sample": 0.9151785714285714,
+  "avg_hits_per_race": 2.8472222222222223
+}

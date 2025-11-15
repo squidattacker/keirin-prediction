@@ -1,0 +1,14 @@
+services:
+  dbt:
+    build:
+      context: .
+      dockerfile: winticket_dbt/Dockerfile
+    working_dir: /workspace/app/winticket_dbt
+    environment:
+      DBT_PROFILES_DIR: /workspace/app/winticket_dbt/profiles
+      WINTICKET_DATA_ROOT: /workspace/app/data/winticket_lake
+      WINTICKET_DBT_WAREHOUSE: /workspace/app/winticket_dbt/warehouse/winticket.duckdb
+    volumes:
+      - ./winticket_dbt:/workspace/app/winticket_dbt
+      - ./data:/workspace/app/data
+    entrypoint: ["dbt"]

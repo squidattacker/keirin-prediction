@@ -1,0 +1,7 @@
+dataset,method,races,hits,accuracy
+keiokaku_20251113-14_F2,top3,22,5,0.22727272727272727
+keiokaku_20251113-14_F2,heat_top3,22,8,0.36363636363636365
+iwakidaira_20251114_F1,top3,12,10,0.8333333333333334
+iwakidaira_20251114_F1,heat_top3,12,9,0.75
+iwakidaira_history_multi,top3,333,249,0.7477477477477478
+iwakidaira_history_multi,heat_top3,333,226,0.6786786786786787
