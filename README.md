@@ -16,12 +16,14 @@ keirin-prediction/
 │   ├── models/bronze/      # 生データテーブル定義
 │   ├── models/silver/      # 正規化済みテーブル定義
 │   └── models/gold/        # 特徴量テーブル定義
-├── data/                   # データレイク
+├── data/                   # データレイク (Git管理対象外)
 │   └── winticket_lake/
 │       ├── bronze/         # 生データ（JSON）
 │       ├── silver/         # 正規化データ
 │       └── gold/           # 特徴量データ（Parquet）
-├── models/                 # 学習済みモデル保存先
+├── models/                 # 学習済みモデル保存先 (Git管理対象外)
+├── predictions/            # 予測結果CSV/TXT保存先 (Git管理対象外)
+├── archives/               # 過去データアーカイブ (Git管理対象外)
 └── docker-compose.yml      # dbt実行環境
 ```
 
@@ -101,8 +103,7 @@ graph TD
     J --> K
     
     K -->|training.py| L[Venue-Specific Models]
-    L --> M[Predictions CSV]
-    
+            L --> M[predictions/ CSV]    
     subgraph "Bronze Layer (生データ)"
         C
         D
@@ -362,6 +363,8 @@ trainer.train()
 
 ## ファイル出力例
 
+予測結果CSVやサマリーCSVは `predictions/` ディレクトリに出力されます。
+
 ### 予測結果CSV
 ```csv
 race_number,number,player_name,win_prob,finish_order
@@ -389,7 +392,8 @@ race_number,total_entries,predicted_winner,actual_winner,prediction_correct
 - バックテストと実運用での精度差にご注意ください
 
 ### データ管理
-- 大量のJSONファイルが蓄積されるため、適切なディスク容量を確保してください  
+- `data/`, `models/`, `predictions/`, `archives/` ディレクトリ内のファイルはGit管理対象外です。
+- 大量のJSONファイルやモデルファイルが蓄積されるため、適切なディスク容量を確保してください  
 - 個人情報を含む可能性があるため、データの取扱いに注意してください
 
 ## ライセンス
